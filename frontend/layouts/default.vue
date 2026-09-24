@@ -78,7 +78,7 @@
           <SidebarGroup>
             <SidebarMenu>
               <template v-for="n in nav" :key="n.id">
-                <SidebarMenuItem v-if="!n.collapsible" :key="n.id">
+                <SidebarMenuItem v-if="!n.collapsible && !n.hidden?.value" :key="n.id">
                   <SidebarMenuLink
                     :href="n.to"
                     :class="{
@@ -92,47 +92,49 @@
                   </SidebarMenuLink>
                 </SidebarMenuItem>
 
-                <Collapsible v-else default-open class="group/collapsible">
-                  <SidebarMenuItem>
-                    <SidebarMenuItem class="flex gap-1">
-                      <SidebarMenuLink
-                        :href="n.to"
-                        :class="{
-                          'bg-accent text-accent-foreground': n.active?.value,
-                          'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
-                        }"
-                        :tooltip="n.name.value"
-                      >
-                        <component :is="n.icon" />
-                        <span>{{ n.name.value }}</span>
-                      </SidebarMenuLink>
-                      <CollapsibleTrigger as-child>
-                        <SidebarMenuButton class="flex size-12 items-center justify-center">
-                          <MdiChevronRight
-                            class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-                          />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
+                <template v-else>
+                  <Collapsible v-if="!n.hidden?.value" default-open class="group/collapsible">
+                    <SidebarMenuItem>
+                      <SidebarMenuItem class="flex gap-1">
+                        <SidebarMenuLink
+                          :href="n.to"
+                          :class="{
+                            'bg-accent text-accent-foreground': n.active?.value,
+                            'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
+                          }"
+                          :tooltip="n.name.value"
+                        >
+                          <component :is="n.icon" />
+                          <span>{{ n.name.value }}</span>
+                        </SidebarMenuLink>
+                        <CollapsibleTrigger as-child>
+                          <SidebarMenuButton class="flex size-12 items-center justify-center">
+                            <MdiChevronRight
+                              class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                            />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                      </SidebarMenuItem>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          <SidebarMenuSubItem v-for="c in n.collapsible" :key="c.id">
+                            <SidebarMenuLink
+                              :href="c.to"
+                              :class="{
+                                'bg-accent text-accent-foreground': c.active?.value,
+                                'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
+                                'h-min py-0': true,
+                              }"
+                              :tooltip="c.name.value"
+                            >
+                              <span>{{ c.name.value }}</span>
+                            </SidebarMenuLink>
+                          </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
                     </SidebarMenuItem>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        <SidebarMenuSubItem v-for="c in n.collapsible" :key="c.id">
-                          <SidebarMenuLink
-                            :href="c.to"
-                            :class="{
-                              'bg-accent text-accent-foreground': c.active?.value,
-                              'text-nowrap': typeof locale === 'string' && locale.startsWith('zh-'),
-                              'h-min py-0': true,
-                            }"
-                            :tooltip="c.name.value"
-                          >
-                            <span>{{ c.name.value }}</span>
-                          </SidebarMenuLink>
-                        </SidebarMenuSubItem>
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </Collapsible>
+                  </Collapsible>
+                </template>
               </template>
 
               <!-- makes scanner accessible easily if using legacy header -->
@@ -432,6 +434,7 @@
       active: computed(() => route.path === "/templates"),
       name: computed(() => t("menu.templates")),
       to: "/templates",
+      hidden: computed(() => !authCtx.user?.isSuperuser),
     },
     {
       icon: MdiWrench,
@@ -439,6 +442,7 @@
       active: computed(() => route.path === "/maintenance"),
       name: computed(() => t("menu.maintenance")),
       to: "/maintenance",
+      hidden: computed(() => !authCtx.user?.isSuperuser),
     },
     {
       icon: MdiAccount,
@@ -453,6 +457,7 @@
       active: computed(() => route.path.includes("/collection")),
       name: computed(() => t("menu.collection")),
       to: "/collection/members",
+      hidden: computed(() => !authCtx.user?.isSuperuser),
       collapsible: [
         {
           id: 61,
