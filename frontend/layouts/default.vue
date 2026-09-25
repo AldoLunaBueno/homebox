@@ -16,6 +16,7 @@
     <CollectionCreateModal />
     <CollectionJoinModal />
     <CollectionInviteCreateModal />
+    <InvoiceUploadModal />
     <SidebarProvider :default-open="sidebarState">
       <Sidebar collapsible="icon">
         <SidebarHeader class="items-center">
@@ -302,6 +303,7 @@
   import CollectionCreateModal from "~/components/Collection/CreateModal.vue";
   import CollectionJoinModal from "~/components/Collection/JoinModal.vue";
   import CollectionInviteCreateModal from "~/components/Collection/InviteCreateModal.vue";
+  import InvoiceUploadModal from "~/components/Invoice/UploadModal.vue";
 
   const { t, locale } = useI18n();
   const username = computed(() => authCtx.user?.name || "User");
@@ -368,7 +370,7 @@
       id: 4,
       name: computed(() => t("menu.create_invoice")),
       shortcut: "Shift+4",
-      dialogId: DialogID.CreateEntity,
+      dialogId: DialogID.UploadInvoice,
     },
     {
       id: 0,
