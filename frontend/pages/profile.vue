@@ -376,7 +376,7 @@
         <LanguageSelector />
       </BaseCard>
 
-      <BaseCard>
+      <BaseCard v-if="auth.user?.isSuperuser">
         <template #title>
           <BaseSectionHeader>
             <MdiKeyVariant class="-mt-1 mr-2" />
