@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -11,16 +12,14 @@ import (
 )
 
 // HandleMaintenanceGetAll godoc
-//
-//	@Summary	Query All Maintenance
-//	@Tags		Maintenance
-//	@Produce	json
-//	@Param		filters	query	repo.MaintenanceFilters	false	"which maintenance to retrieve"
-//	@Success	200		{array}	repo.MaintenanceEntryWithDetails[]
-//	@Router		/v1/maintenance [GET]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleMaintenanceGetAll() errchain.HandlerFunc {
 	fn := func(r *http.Request, filters repo.MaintenanceFilters) ([]repo.MaintenanceEntryWithDetails, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			// Degradación elegante: devolvemos lista vacía
+			return []repo.MaintenanceEntryWithDetails{}, nil
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.MaintEntry.GetAllMaintenance(auth, auth.GID, filters)
 	}
@@ -29,17 +28,13 @@ func (ctrl *V1Controller) HandleMaintenanceGetAll() errchain.HandlerFunc {
 }
 
 // HandleMaintenanceEntryUpdate godoc
-//
-//	@Summary	Update Maintenance Entry
-//	@Tags		Maintenance
-//	@Produce	json
-//	@Param		id		path		string						true	"Maintenance ID"
-//	@Param		payload	body		repo.MaintenanceEntryUpdate	true	"Entry Data"
-//	@Success	200		{object}	repo.MaintenanceEntry
-//	@Router		/v1/maintenance/{id} [PUT]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleMaintenanceEntryUpdate() errchain.HandlerFunc {
 	fn := func(r *http.Request, entryID uuid.UUID, body repo.MaintenanceEntryUpdate) (repo.MaintenanceEntry, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return repo.MaintenanceEntry{}, errors.New("forbidden: only superusers can update maintenance entries")
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.MaintEntry.Update(auth, auth.GID, entryID, body)
 	}
@@ -48,16 +43,13 @@ func (ctrl *V1Controller) HandleMaintenanceEntryUpdate() errchain.HandlerFunc {
 }
 
 // HandleMaintenanceEntryDelete godoc
-//
-//	@Summary	Delete Maintenance Entry
-//	@Tags		Maintenance
-//	@Produce	json
-//	@Param		id	path	string	true	"Maintenance ID"
-//	@Success	204
-//	@Router		/v1/maintenance/{id} [DELETE]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleMaintenanceEntryDelete() errchain.HandlerFunc {
 	fn := func(r *http.Request, entryID uuid.UUID) (any, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return nil, errors.New("forbidden: only superusers can delete maintenance entries")
+		}
+
 		auth := services.NewContext(r.Context())
 		err := ctrl.repo.MaintEntry.Delete(auth, auth.GID, entryID)
 		return nil, err
