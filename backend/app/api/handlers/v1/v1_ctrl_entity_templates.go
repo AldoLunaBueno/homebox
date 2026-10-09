@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -12,15 +13,14 @@ import (
 )
 
 // HandleEntityTemplatesGetAll godoc
-//
-//	@Summary	Get All Entity Templates
-//	@Tags		Entity Templates
-//	@Produce	json
-//	@Success	200	{array}	repo.EntityTemplateSummary
-//	@Router		/v1/templates [GET]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleEntityTemplatesGetAll() errchain.HandlerFunc {
 	fn := func(r *http.Request) ([]repo.EntityTemplateSummary, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			// Degradación elegante: devolvemos lista vacía
+			return []repo.EntityTemplateSummary{}, nil
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.EntityTemplates.GetAll(r.Context(), auth.GID)
 	}
@@ -29,16 +29,13 @@ func (ctrl *V1Controller) HandleEntityTemplatesGetAll() errchain.HandlerFunc {
 }
 
 // HandleEntityTemplatesGet godoc
-//
-//	@Summary	Get Entity Template
-//	@Tags		Entity Templates
-//	@Produce	json
-//	@Param		id	path		string	true	"Template ID"
-//	@Success	200	{object}	repo.EntityTemplateOut
-//	@Router		/v1/templates/{id} [GET]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleEntityTemplatesGet() errchain.HandlerFunc {
 	fn := func(r *http.Request, ID uuid.UUID) (repo.EntityTemplateOut, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return repo.EntityTemplateOut{}, errors.New("forbidden: only superusers can view templates")
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.EntityTemplates.GetOne(r.Context(), auth.GID, ID)
 	}
@@ -47,16 +44,13 @@ func (ctrl *V1Controller) HandleEntityTemplatesGet() errchain.HandlerFunc {
 }
 
 // HandleEntityTemplatesCreate godoc
-//
-//	@Summary	Create Entity Template
-//	@Tags		Entity Templates
-//	@Produce	json
-//	@Param		payload	body		repo.EntityTemplateCreate	true	"Template Data"
-//	@Success	201		{object}	repo.EntityTemplateOut
-//	@Router		/v1/templates [POST]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleEntityTemplatesCreate() errchain.HandlerFunc {
 	fn := func(r *http.Request, body repo.EntityTemplateCreate) (repo.EntityTemplateOut, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return repo.EntityTemplateOut{}, errors.New("forbidden: only superusers can create templates")
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.EntityTemplates.Create(r.Context(), auth.GID, body)
 	}
@@ -65,17 +59,13 @@ func (ctrl *V1Controller) HandleEntityTemplatesCreate() errchain.HandlerFunc {
 }
 
 // HandleEntityTemplatesUpdate godoc
-//
-//	@Summary	Update Entity Template
-//	@Tags		Entity Templates
-//	@Produce	json
-//	@Param		id		path		string						true	"Template ID"
-//	@Param		payload	body		repo.EntityTemplateUpdate	true	"Template Data"
-//	@Success	200		{object}	repo.EntityTemplateOut
-//	@Router		/v1/templates/{id} [PUT]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleEntityTemplatesUpdate() errchain.HandlerFunc {
 	fn := func(r *http.Request, ID uuid.UUID, body repo.EntityTemplateUpdate) (repo.EntityTemplateOut, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return repo.EntityTemplateOut{}, errors.New("forbidden: only superusers can update templates")
+		}
+
 		auth := services.NewContext(r.Context())
 		body.ID = ID
 		return ctrl.repo.EntityTemplates.Update(r.Context(), auth.GID, body)
@@ -85,16 +75,13 @@ func (ctrl *V1Controller) HandleEntityTemplatesUpdate() errchain.HandlerFunc {
 }
 
 // HandleEntityTemplatesDelete godoc
-//
-//	@Summary	Delete Entity Template
-//	@Tags		Entity Templates
-//	@Produce	json
-//	@Param		id	path	string	true	"Template ID"
-//	@Success	204
-//	@Router		/v1/templates/{id} [DELETE]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleEntityTemplatesDelete() errchain.HandlerFunc {
 	fn := func(r *http.Request, ID uuid.UUID) (any, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return nil, errors.New("forbidden: only superusers can delete templates")
+		}
+
 		auth := services.NewContext(r.Context())
 		err := ctrl.repo.EntityTemplates.Delete(r.Context(), auth.GID, ID)
 		return nil, err
@@ -104,28 +91,22 @@ func (ctrl *V1Controller) HandleEntityTemplatesDelete() errchain.HandlerFunc {
 }
 
 type EntityTemplateCreateItemRequest struct {
-	Name        string    `json:"name"        validate:"required,min=1,max=255"`
-	Description string    `json:"description" validate:"max=1000"`
-	ParentID    uuid.UUID `json:"parentId"    validate:"required"`
-	// EntityTypeID is the entity type selected by the user. When set it takes
-	// precedence; when empty the repository falls back to the group's default.
+	Name         string      `json:"name"        validate:"required,min=1,max=255"`
+	Description  string      `json:"description" validate:"max=1000"`
+	ParentID     uuid.UUID   `json:"parentId"    validate:"required"`
 	EntityTypeID uuid.UUID   `json:"entityTypeId"`
 	TagIDs       []uuid.UUID `json:"tagIds"`
 	Quantity     *float64    `json:"quantity"`
 }
 
 // HandleEntityTemplatesCreateItem godoc
-//
-//	@Summary	Create Entity from Template
-//	@Tags		Entity Templates
-//	@Produce	json
-//	@Param		id		path		string							true	"Template ID"
-//	@Param		payload	body		EntityTemplateCreateItemRequest	true	"Entity Data"
-//	@Success	201		{object}	repo.EntityOut
-//	@Router		/v1/templates/{id}/create-item [POST]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleEntityTemplatesCreateItem() errchain.HandlerFunc {
 	fn := func(r *http.Request, templateID uuid.UUID, body EntityTemplateCreateItemRequest) (repo.EntityOut, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return repo.EntityOut{}, errors.New("forbidden: only superusers can create items from templates")
+		}
+
 		auth := services.NewContext(r.Context())
 
 		template, err := ctrl.repo.EntityTemplates.GetOne(r.Context(), auth.GID, templateID)
@@ -138,7 +119,6 @@ func (ctrl *V1Controller) HandleEntityTemplatesCreateItem() errchain.HandlerFunc
 			quantity = *body.Quantity
 		}
 
-		// Build custom fields from template
 		fields := lo.Map(template.Fields, func(f repo.TemplateField, _ int) repo.EntityFieldData {
 			return repo.EntityFieldData{
 				Type:         f.Type,
@@ -149,7 +129,6 @@ func (ctrl *V1Controller) HandleEntityTemplatesCreateItem() errchain.HandlerFunc
 			}
 		})
 
-		// Create entity with all template data in a single transaction
 		return ctrl.repo.Entities.CreateFromTemplate(r.Context(), auth.GID, repo.EntityCreateFromTemplate{
 			Name:             body.Name,
 			Description:      body.Description,
