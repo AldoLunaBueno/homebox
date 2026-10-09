@@ -39,13 +39,6 @@ type (
 )
 
 // HandleGroupGet godoc
-//
-//	@Summary	Get Group
-//	@Tags		Group
-//	@Produce	json
-//	@Success	200	{object}	repo.Group
-//	@Router		/v1/groups [Get]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupGet() errchain.HandlerFunc {
 	fn := func(r *http.Request) (repo.Group, error) {
 		auth := services.NewContext(r.Context())
@@ -56,16 +49,13 @@ func (ctrl *V1Controller) HandleGroupGet() errchain.HandlerFunc {
 }
 
 // HandleGroupUpdate godoc
-//
-//	@Summary	Update Group
-//	@Tags		Group
-//	@Produce	json
-//	@Param		payload	body		repo.GroupUpdate	true	"User Data"
-//	@Success	200		{object}	repo.Group
-//	@Router		/v1/groups [Put]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupUpdate() errchain.HandlerFunc {
 	fn := func(r *http.Request, body repo.GroupUpdate) (repo.Group, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return repo.Group{}, errors.New("forbidden: only superusers can update collections")
+		}
+
 		auth := services.NewContext(r.Context())
 
 		ok := ctrl.svc.Currencies.IsSupported(body.Currency)
@@ -82,17 +72,13 @@ func (ctrl *V1Controller) HandleGroupUpdate() errchain.HandlerFunc {
 }
 
 // HandleGroupInvitationsCreate godoc
-//
-//	@Summary	Create Group Invitation
-//	@ID			groupInvitationCreate
-//	@Tags		Group
-//	@Produce	json
-//	@Param		payload	body		GroupInvitationCreate	true	"User Data"
-//	@Success	200		{object}	GroupInvitation
-//	@Router		/v1/groups/invitations [Post]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupInvitationsCreate() errchain.HandlerFunc {
 	fn := func(r *http.Request, body GroupInvitationCreate) (GroupInvitation, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return GroupInvitation{}, errors.New("forbidden: only superusers can create invitations")
+		}
+
 		if body.ExpiresAt.IsZero() {
 			body.ExpiresAt = time.Now().Add(time.Hour * 24)
 		}
@@ -116,15 +102,9 @@ func (ctrl *V1Controller) HandleGroupInvitationsCreate() errchain.HandlerFunc {
 }
 
 // HandleGroupsGetAll godoc
-//
-//	@Summary	Get All Groups
-//	@Tags		Group
-//	@Produce	json
-//	@Success	200	{object}	[]repo.Group
-//	@Router		/v1/groups/all [Get]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupsGetAll() errchain.HandlerFunc {
 	fn := func(r *http.Request) ([]repo.Group, error) {
+		// No se bloquea para que el usuario pueda ver el listado de colecciones a las que pertenece
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.Groups.GetAllGroups(auth, auth.UID)
 	}
@@ -133,16 +113,13 @@ func (ctrl *V1Controller) HandleGroupsGetAll() errchain.HandlerFunc {
 }
 
 // HandleGroupCreate godoc
-//
-//	@Summary	Create Group
-//	@Tags		Group
-//	@Produce	json
-//	@Param		payload	body		CreateRequest	true	"Create group request"
-//	@Success	201		{object}	repo.Group
-//	@Router		/v1/groups [Post]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupCreate() errchain.HandlerFunc {
 	fn := func(r *http.Request, body CreateRequest) (repo.Group, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return repo.Group{}, errors.New("forbidden: only superusers can create collections")
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.svc.Group.CreateGroup(auth, body.Name)
 	}
@@ -151,36 +128,29 @@ func (ctrl *V1Controller) HandleGroupCreate() errchain.HandlerFunc {
 }
 
 // HandleGroupDelete godoc
-//
-//	@Summary	Delete Group
-//	@Tags		Group
-//	@Produce	json
-//	@Success	204
-//	@Router		/v1/groups [Delete]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupDelete() errchain.HandlerFunc {
 	fn := func(r *http.Request) (any, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return nil, errors.New("forbidden: only superusers can delete collections")
+		}
+
 		auth := services.NewContext(r.Context())
 
-		// Get the current user to check their groups
 		currentUser, err := ctrl.repo.Users.GetOneID(auth, auth.UID)
 		if err != nil {
 			return nil, err
 		}
 
-		// Safeguard: prevent deleting if this is the user's only group
 		if len(currentUser.GroupIDs) <= 1 {
 			return nil, validate.NewRequestError(errors.New("cannot delete the only group you are a member of"), http.StatusBadRequest)
 		}
 
-		// If the group being deleted is the user's default group, reassign to another group
 		if currentUser.DefaultGroupID == auth.GID {
-			// Find another group the user is a member of
 			newDefaultGroupID, _ := lo.Find(currentUser.GroupIDs, func(gid uuid.UUID) bool {
 				return gid != auth.GID
 			})
 
-			// Update the user's default group
 			if err := ctrl.repo.Users.UpdateDefaultGroup(auth, auth.UID, newDefaultGroupID); err != nil {
 				return nil, err
 			}
@@ -194,15 +164,14 @@ func (ctrl *V1Controller) HandleGroupDelete() errchain.HandlerFunc {
 }
 
 // HandleGroupInvitationsGetAll godoc
-//
-//	@Summary	Get All Group Invitations
-//	@Tags		Group
-//	@Produce	json
-//	@Success	200	{object}	[]repo.GroupInvitation
-//	@Router		/v1/groups/invitations [Get]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupInvitationsGetAll() errchain.HandlerFunc {
 	fn := func(r *http.Request) ([]repo.GroupInvitation, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			// Degradación elegante
+			return []repo.GroupInvitation{}, nil
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.Groups.InvitationGetAll(auth, auth.GID)
 	}
@@ -211,15 +180,14 @@ func (ctrl *V1Controller) HandleGroupInvitationsGetAll() errchain.HandlerFunc {
 }
 
 // HandleGroupMembersGetAll godoc
-//
-//	@Summary	Get All Group Members
-//	@Tags		Group
-//	@Produce	json
-//	@Success	200	{object}	[]repo.UserSummary
-//	@Router		/v1/groups/members [Get]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupMembersGetAll() errchain.HandlerFunc {
 	fn := func(r *http.Request) ([]repo.UserSummary, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			// Degradación elegante
+			return []repo.UserSummary{}, nil
+		}
+
 		auth := services.NewContext(r.Context())
 		return ctrl.repo.Users.GetUsersByGroupID(auth, auth.GID)
 	}
@@ -228,24 +196,19 @@ func (ctrl *V1Controller) HandleGroupMembersGetAll() errchain.HandlerFunc {
 }
 
 // HandleGroupMemberRemove godoc
-//
-//	@Summary	Remove User from Group
-//	@Tags		Group
-//	@Produce	json
-//	@Param		user_id	path	string	true	"User ID"
-//	@Success	204
-//	@Router		/v1/groups/members/{user_id} [Delete]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupMemberRemove() errchain.HandlerFunc {
 	fn := func(r *http.Request, userID uuid.UUID) (any, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return nil, errors.New("forbidden: only superusers can remove members")
+		}
+
 		auth := services.NewContext(r.Context())
 
-		// Safeguard: prevent user from removing themselves
 		if userID == auth.UID {
 			return nil, validate.NewRequestError(errors.New("cannot remove yourself from the group"), http.StatusBadRequest)
 		}
 
-		// Safeguard: prevent removing the last member
 		members, err := ctrl.repo.Users.GetUsersByGroupID(auth, auth.GID)
 		if err != nil {
 			return nil, err
@@ -262,16 +225,13 @@ func (ctrl *V1Controller) HandleGroupMemberRemove() errchain.HandlerFunc {
 }
 
 // HandleGroupInvitationsDelete godoc
-//
-//	@Summary	Delete Group Invitation
-//	@Tags		Group
-//	@Produce	json
-//	@Param		id	path	string	true	"Invitation ID"
-//	@Success	204
-//	@Router		/v1/groups/invitations/{id} [Delete]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupInvitationsDelete() errchain.HandlerFunc {
 	fn := func(r *http.Request, id uuid.UUID) (any, error) {
+		actor := services.UseUserCtx(r.Context())
+		if !actor.IsSuperuser {
+			return nil, errors.New("forbidden: only superusers can delete invitations")
+		}
+
 		auth := services.NewContext(r.Context())
 		err := ctrl.svc.Group.DeleteInvitation(auth, id)
 		return nil, err
@@ -281,17 +241,9 @@ func (ctrl *V1Controller) HandleGroupInvitationsDelete() errchain.HandlerFunc {
 }
 
 // HandleGroupInvitationsAccept godoc
-//
-//	@Summary	Accept Group Invitation
-//	@ID			groupInvitationAccept
-//	@Tags		Group
-//	@Produce	json
-//	@Param		id	path		string	true	"Invitation Token"
-//	@Success	200	{object}	GroupAcceptInvitationResponse
-//	@Router		/v1/groups/invitations/{id} [Post]
-//	@Security	Bearer
 func (ctrl *V1Controller) HandleGroupInvitationsAccept() errchain.HandlerFunc {
 	fn := func(r *http.Request) (GroupAcceptInvitationResponse, error) {
+		// Se permite a cualquier usuario aceptar invitaciones
 		token := chi.URLParam(r, "id")
 		if token == "" {
 			return GroupAcceptInvitationResponse{}, validate.NewRequestError(errors.New("token is required"), http.StatusBadRequest)
